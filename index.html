@@ -561,7 +561,7 @@ html.bag0 .ovbag .bagn{display:none}
 .worn:empty{display:none}
 .worn .wi{display:flex;flex-direction:column;align-items:flex-end;gap:3px;animation:wiIn .7s var(--soft) both}
 .worn .wi{pointer-events:auto;touch-action:none;-webkit-user-select:none;user-select:none}
-.wi.lift,.wc.lift{transform:scale(1.06);filter:drop-shadow(0 8px 18px rgba(0,0,0,.55));transition:transform .25s cubic-bezier(.22,.9,.24,1);z-index:5;position:relative}
+.wi.lift,.wc.lift{animation:none!important;transform:scale(1.06);filter:drop-shadow(0 8px 18px rgba(0,0,0,.55));transition:transform .25s cubic-bezier(.22,.9,.24,1);z-index:5;position:relative}
 .worn b{font:500 19px/1.05 var(--display);letter-spacing:.02em;color:#f6f1ea;text-shadow:0 1px 14px rgba(0,0,0,.75),0 0 2px rgba(0,0,0,.5)}
 .worn span{font:italic 400 12px/1.25 var(--display);letter-spacing:.01em;color:var(--sand);text-shadow:0 1px 10px rgba(0,0,0,.8)}
 .worn .wi.pend{opacity:.7}
@@ -1756,9 +1756,9 @@ function throwOff(el, id){
   if (el._thr) return; el._thr = 1; let T = null;
   const worn = () => wornNow(S.profile.current).includes(id);
   el.addEventListener('touchstart', e => { if (!worn() || e.touches.length > 1) return; const t = e.touches[0];
-    T = {x: t.clientX, y: t.clientY, up: false, h: setTimeout(() => { if (!T) return; T.up = true; el.classList.add('lift'); haptic(); }, 380)}; }, {passive: true});
+    T = {x: t.clientX, y: t.clientY, up: false, h: setTimeout(() => { if (!T) return; T.up = true; el.style.animation = 'none'; el.classList.add('lift'); haptic(); }, 380)}; }, {passive: false});   // анимация появления держала положение — снимаем её на время жеста
   el.addEventListener('touchmove', e => { if (!T) return; const t = e.touches[0], dx = t.clientX - T.x, dy = t.clientY - T.y;
-    if (!T.up) { if (Math.hypot(dx, dy) > 10) { clearTimeout(T.h); T = null; } return; }
+    if (!T.up) { if (Math.hypot(dx, dy) > 10) { clearTimeout(T.h); T = null; } else e.preventDefault(); return; }   // пока держишь — лента не начинает листаться
     e.preventDefault(); T.dx = dx; T.dy = dy; el.style.transition = 'none'; el.style.transform = `translate(${dx}px,${dy}px) rotate(${dx / 12}deg) scale(1.04)`; el.style.opacity = String(Math.max(.25, 1 - Math.hypot(dx, dy) / 260)); }, {passive: false});
   const end = () => { if (!T) return; clearTimeout(T.h); const t = T; T = null; if (!t.up) return;
     el.classList.remove('lift'); const d = Math.hypot(t.dx || 0, t.dy || 0);
