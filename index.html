@@ -560,6 +560,8 @@ html.bag0 .ovbag .bagn{display:none}
 .worn{position:absolute;right:14px;top:calc(var(--st) + 80px);max-width:40%;z-index:3;display:flex;flex-direction:column;align-items:flex-end;gap:12px;text-align:right;pointer-events:none;transition:opacity .4s var(--soft)}
 .worn:empty{display:none}
 .worn .wi{display:flex;flex-direction:column;align-items:flex-end;gap:3px;animation:wiIn .7s var(--soft) both}
+.worn .wi{pointer-events:auto;touch-action:none;-webkit-user-select:none;user-select:none}
+.wi.lift,.wc.lift{transform:scale(1.06);filter:drop-shadow(0 8px 18px rgba(0,0,0,.55));transition:transform .25s cubic-bezier(.22,.9,.24,1);z-index:5;position:relative}
 .worn b{font:500 19px/1.05 var(--display);letter-spacing:.02em;color:#f6f1ea;text-shadow:0 1px 14px rgba(0,0,0,.75),0 0 2px rgba(0,0,0,.5)}
 .worn span{font:italic 400 12px/1.25 var(--display);letter-spacing:.01em;color:var(--sand);text-shadow:0 1px 10px rgba(0,0,0,.8)}
 .worn .wi.pend{opacity:.7}
@@ -1715,7 +1717,8 @@ function renderWearBar(pk, worn, pend){
   const bag = bagIds().slice().reverse(), src = wsrc === 'all' ? list.map(i => i.id) : (tryItem && !bag.includes(tryItem.id) ? [tryItem.id, ...bag] : bag), ids = [...worn.filter(i => !src.includes(i)), ...src].filter(i => byId[i]);   // надетое — всегда в карусели первым, чтобы его можно было снять
   // справа на фото красиво написано, что на человеке надето
   const wl = $('#wornList'); if (wl) { const pn = pend.filter(i => !worn.includes(i)); wl.innerHTML = [...worn, ...pn].filter(i => byId[i]).map(id => { const name = byId[id].model || byId[id].title || '', ps = name.split(' · '), br = ps.length > 1 ? ps[0] : (byId[id].brand || ''), ds = ps.length > 1 ? ps.slice(1).join(' · ') : name;
-    return `<div class="wi${pn.includes(id) ? ' pend' : ''}"><b>${esc(br)}</b><span>${pn.includes(id) ? 'надеваю…' : esc(ds) + (isBought(id) ? ' · <em>моё</em>' : '')}</span></div>`; }).join(''); }
+    return `<div class="wi${pn.includes(id) ? ' pend' : ''}" data-id="${esc(id)}"><b>${esc(br)}</b><span>${pn.includes(id) ? 'надеваю…' : esc(ds) + (isBought(id) ? ' · <em>моё</em>' : '')}</span></div>`; }).join(''); }
+  if (wl) wl.querySelectorAll('.wi:not(.pend)').forEach(w => throwOff(w, w.dataset.id));
   if (!ids.length && wsrc !== 'all' && list.length) { wsrc = 'all'; return renderWearBar(pk, worn, pend); }   // вешалка пуста — крутим ленту
   if (!ids.length) { bar.innerHTML = ''; wheelIds = ''; return; }
   const sig = ids.join();
@@ -1725,10 +1728,16 @@ function renderWearBar(pk, worn, pend){
     $('#wsrcBox').innerHTML = `<button data-s="bag" class="${wsrc!=='all'?'on':''}">Вешалка <i>${bag.length}</i></button><span>·</span><button data-s="all" class="${wsrc==='all'?'on':''}">Вся лента <i>${list.length}</i></button>`;
     $('#wsrcBox').querySelectorAll('button').forEach(b => b.onclick = e => { e.stopPropagation(); if (wsrc === b.dataset.s) return; wsrc = b.dataset.s; LSset('wsrc', wsrc); haptic(); wheelIds = ''; renderTry(); });
     const k = Math.max(0, ids.indexOf(tryItem?.id)); wheelPos = k;
+    bar.querySelectorAll('.wc').forEach(c => throwOff(c, c.dataset.id));
     if (isVitrine()) {   // Павел 10.11: телефон — журнальная витрина: колонна снимков вплотную к модели, листается пальцем
       bar.ontouchstart = bar.ontouchmove = bar.ontouchend = bar.onpointerdown = bar.onpointermove = bar.onpointerup = null;
       bar.querySelectorAll('.wc').forEach(c => c.onclick = e => { e.stopPropagation(); const it2 = byId[c.dataset.id]; if (!it2 || it2 === tryItem) return; tryItem = it2; haptic(); renderTry(); });
-      bar.onscroll = () => { clearTimeout(bar._st); bar._st = setTimeout(vitrineLoad, 60); };
+      // Павел 10.11: «заказывала сапоги, а одели туфли» — долистала колонку до сапог, а выбранной оставалась прежняя вещь;
+      // теперь вещь, на которой колонка остановилась (верхняя у модели), сама становится выбранной — «Надеть» надевает именно её
+      bar.onscroll = () => { clearTimeout(bar._st); bar._st = setTimeout(vitrineLoad, 60); clearTimeout(bar._pick);
+        bar._pick = setTimeout(() => { const cs = [...bar.querySelectorAll('.wc')]; if (!cs.length) return;
+          const c = cs.reduce((a, b) => Math.abs(b.offsetTop - 8 - bar.scrollTop) < Math.abs(a.offsetTop - 8 - bar.scrollTop) ? b : a);
+          const it2 = byId[c.dataset.id]; if (it2 && it2 !== tryItem) { tryItem = it2; haptic('select'); renderTry(); } }, 220); };
       requestAnimationFrame(() => { const cur = bar.querySelector(`.wc[data-id="${CSS.escape(tryItem?.id || '')}"]`); if (cur) bar.scrollTop = Math.max(0, cur.offsetTop - 8); vitrineLoad(); });
     } else {
       wheelDrag(bar, ids);
@@ -1742,6 +1751,23 @@ function renderWearBar(pk, worn, pend){
   layoutWheel();
 }
 const isVitrine = () => !document.body.classList.contains('wide');
+// Павел 10.11: «надетые балетки — зажать и выкинуть»: держишь надетую вещь ~0,4 с — она приподнимается; смахнул — улетает и снимается
+function throwOff(el, id){
+  if (el._thr) return; el._thr = 1; let T = null;
+  const worn = () => wornNow(S.profile.current).includes(id);
+  el.addEventListener('touchstart', e => { if (!worn() || e.touches.length > 1) return; const t = e.touches[0];
+    T = {x: t.clientX, y: t.clientY, up: false, h: setTimeout(() => { if (!T) return; T.up = true; el.classList.add('lift'); haptic(); }, 380)}; }, {passive: true});
+  el.addEventListener('touchmove', e => { if (!T) return; const t = e.touches[0], dx = t.clientX - T.x, dy = t.clientY - T.y;
+    if (!T.up) { if (Math.hypot(dx, dy) > 10) { clearTimeout(T.h); T = null; } return; }
+    e.preventDefault(); T.dx = dx; T.dy = dy; el.style.transition = 'none'; el.style.transform = `translate(${dx}px,${dy}px) rotate(${dx / 12}deg) scale(1.04)`; el.style.opacity = String(Math.max(.25, 1 - Math.hypot(dx, dy) / 260)); }, {passive: false});
+  const end = () => { if (!T) return; clearTimeout(T.h); const t = T; T = null; if (!t.up) return;
+    el.classList.remove('lift'); const d = Math.hypot(t.dx || 0, t.dy || 0);
+    if (d > 80) { const k = 420 / d; el.style.transition = 'transform .45s cubic-bezier(.3,.7,.4,1), opacity .45s'; el.style.transform = `translate(${t.dx * k}px,${t.dy * k}px) rotate(${t.dx / 6}deg) scale(.7)`; el.style.opacity = '0';
+      haptic(); const it = byId[id]; setTimeout(() => { el.style.transform = el.style.opacity = el.style.transition = ''; if (it && worn()) wear(it); }, 430); toast('Снимаю…'); }
+    else { el.style.transition = 'transform .35s cubic-bezier(.22,.9,.24,1), opacity .35s'; el.style.transform = ''; el.style.opacity = ''; } };
+  el.addEventListener('touchend', end); el.addEventListener('touchcancel', end);
+  el.addEventListener('contextmenu', e => e.preventDefault());
+}
 function vitrineLoad(){   // картинки — только у видимых снимков витрины и соседних
   const bar = $('#wearBar'); if (!bar) return; const top = bar.scrollTop - bar.clientHeight, bot = bar.scrollTop + bar.clientHeight * 2;
   bar.querySelectorAll('.wc').forEach(c => { const y = c.offsetTop, vis = y + c.offsetHeight > top && y < bot;
