@@ -387,8 +387,9 @@ html.bag0 .ovbag .bagn{display:none}
 .bagmark{position:absolute;right:14px;top:calc(var(--ptop) + 14px);z-index:2;width:32px;height:32px;border-radius:16px;display:grid;place-items:center;background:rgba(217,195,165,.92);color:var(--onsand);box-shadow:0 4px 14px rgba(0,0,0,.3);opacity:0;transition:opacity .8s var(--soft);pointer-events:none}
 .bagmark svg{width:17px;height:17px}
 /* Павел 10.11: «к лайкнутой вещи сердце прилипает» — в одиночной ленте и в сетке */
-.bagmark{background:rgba(12,10,11,.55)!important;color:#ff3d68!important;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);box-shadow:0 0 0 1px rgba(255,255,255,.18),0 4px 14px rgba(0,0,0,.35)!important}
-.bagmark svg{fill:currentColor;stroke:none}
+/* Павел 10.11: «сердечки маленькие и на тёмном фоне — побольше» — крупное розовое сердце без подложки, белая обводка и тень читаются на любом фото */
+.bagmark{width:48px!important;height:48px!important;background:none!important;color:#ff3d68!important;box-shadow:none!important;backdrop-filter:none;-webkit-backdrop-filter:none}
+.bagmark svg{width:40px!important;height:40px!important;fill:currentColor;stroke:#fff;stroke-width:1.4;filter:drop-shadow(0 2px 6px rgba(0,0,0,.45)) drop-shadow(0 0 10px rgba(255,61,104,.45));overflow:visible}
 .item.inbag .bagmark{opacity:1}
 /* полоска покупок справа: появляется после свайпа, своя прокрутка, растворяется при листании ленты */
 #rail{position:absolute;right:10px;top:max(calc(var(--ptop) + 8px),calc(var(--st) + 68px));max-height:min(calc(var(--pbot) - max(calc(var(--ptop) + 8px),calc(var(--st) + 68px)) - 8px),560px);width:76px;z-index:20;display:flex;flex-direction:column;border-radius:22px;background:rgba(28,25,27,.72);-webkit-backdrop-filter:saturate(170%) blur(24px);backdrop-filter:saturate(170%) blur(24px);box-shadow:0 18px 50px rgba(0,0,0,.45),inset 0 0 0 .5px rgba(255,255,255,.1);opacity:0;transform:translateX(26px);pointer-events:none;transition:opacity .6s var(--soft),transform .8s var(--soft)}
@@ -698,8 +699,8 @@ html.bag0 .ovbag .bagn{display:none}
 #gridS[hidden]{display:none!important}#fGrid{grid-template-columns:repeat(3,1fr)!important;display:grid}body.pushed #gridS{visibility:hidden}
 #gridS .gt{position:relative;border:0;padding:0;background:#111;overflow:hidden;border-radius:4px}
 #gridS .gt i{position:absolute;inset:0;background:#141213 center/cover no-repeat;transition:opacity .4s}
-#gridS .gheart{position:absolute;right:6px;top:6px;width:24px;height:24px;border-radius:12px;display:grid;place-items:center;background:rgba(12,10,11,.55);color:#ff3d68;opacity:0;transform:scale(.6);transition:opacity .35s,transform .35s cubic-bezier(.22,.9,.24,1);pointer-events:none}
-#gridS .gheart svg{width:13px;height:13px;fill:currentColor}
+#gridS .gheart{position:absolute;right:5px;top:5px;width:calc(46px - var(--gn,2) * 4px);height:calc(46px - var(--gn,2) * 4px);display:grid;place-items:center;color:#ff3d68;opacity:0;transform:scale(.6);transition:opacity .35s,transform .35s cubic-bezier(.22,.9,.24,1);pointer-events:none}
+#gridS .gheart svg{width:100%;height:100%;fill:currentColor;stroke:#fff;stroke-width:1.5;filter:drop-shadow(0 2px 5px rgba(0,0,0,.5)) drop-shadow(0 0 8px rgba(255,61,104,.45));overflow:visible}
 #gridS .gt.inbag .gheart{opacity:1;transform:none}
 #gridS .gt:active i{opacity:.7}
 #devSheet{position:fixed;inset:0;z-index:200;display:flex;align-items:flex-end;background:rgba(0,0,0,0);transition:background .3s}
@@ -888,7 +889,7 @@ body:not(.wide) #dock{left:0;right:0;bottom:0;padding-bottom:calc(var(--sb) + 10
 body:not(.wide) #dock .cap{background:none;box-shadow:none;-webkit-backdrop-filter:none;backdrop-filter:none;gap:26px;height:auto;padding:0}
 body:not(.wide) #dock .db,body:not(.wide) .heart1{border-radius:50%;background:radial-gradient(circle at 50% 22%,#5a5a5a,#141414 58%,#000);box-shadow:0 0 0 2px #121212,0 0 0 4px #cdcdcd,0 0 0 5px #5e5e5e,inset 0 1px 1px rgba(255,255,255,.35),0 6px 14px rgba(0,0,0,.7);color:#eee}
 body:not(.wide) #dock .db{width:54px;height:54px}
-body:not(.wide) #dock .heart1{width:68px;height:68px}
+body:not(.wide) #dock .heart1{width:78px;height:78px}body:not(.wide) #dock .heart1 svg{width:42px;height:42px}   /* Павел 10.11: центральное — побольше */
 body:not(.wide) .heart1.on path,body:not(.wide) .heart1[aria-pressed="true"] path{fill:url(#hg);stroke:#ff3d68}
 /* панели и листы — чёрное стекло с бликом */
 body:not(.wide) .msheet,body:not(.wide) .sheet{background:linear-gradient(rgba(255,255,255,.1),rgba(255,255,255,.02) 26px,transparent 27px),linear-gradient(#141414,#050505);border-top:1px solid #3c3c3c;box-shadow:0 -14px 40px rgba(0,0,0,.75)}
