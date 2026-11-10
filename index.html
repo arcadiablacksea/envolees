@@ -386,8 +386,10 @@ html.bag0 .ovbag .bagn{display:none}
 .swb.no{color:var(--muted)}
 .bagmark{position:absolute;right:14px;top:calc(var(--ptop) + 14px);z-index:2;width:32px;height:32px;border-radius:16px;display:grid;place-items:center;background:rgba(217,195,165,.92);color:var(--onsand);box-shadow:0 4px 14px rgba(0,0,0,.3);opacity:0;transition:opacity .8s var(--soft);pointer-events:none}
 .bagmark svg{width:17px;height:17px}
-.item.inbag .bagmark{opacity:0}
-.item.ov-on .bagmark,#stack.railon .item.inbag .bagmark{opacity:0}
+/* Павел 10.11: «к лайкнутой вещи сердце прилипает» — в одиночной ленте и в сетке */
+.bagmark{background:rgba(12,10,11,.55)!important;color:#ff3d68!important;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);box-shadow:0 0 0 1px rgba(255,255,255,.18),0 4px 14px rgba(0,0,0,.35)!important}
+.bagmark svg{fill:currentColor;stroke:none}
+.item.inbag .bagmark{opacity:1}
 /* полоска покупок справа: появляется после свайпа, своя прокрутка, растворяется при листании ленты */
 #rail{position:absolute;right:10px;top:max(calc(var(--ptop) + 8px),calc(var(--st) + 68px));max-height:min(calc(var(--pbot) - max(calc(var(--ptop) + 8px),calc(var(--st) + 68px)) - 8px),560px);width:76px;z-index:20;display:flex;flex-direction:column;border-radius:22px;background:rgba(28,25,27,.72);-webkit-backdrop-filter:saturate(170%) blur(24px);backdrop-filter:saturate(170%) blur(24px);box-shadow:0 18px 50px rgba(0,0,0,.45),inset 0 0 0 .5px rgba(255,255,255,.1);opacity:0;transform:translateX(26px);pointer-events:none;transition:opacity .6s var(--soft),transform .8s var(--soft)}
 #rail.on{opacity:1;transform:none;pointer-events:auto}
@@ -696,7 +698,9 @@ html.bag0 .ovbag .bagn{display:none}
 #gridS[hidden]{display:none!important}#fGrid{grid-template-columns:repeat(3,1fr)!important;display:grid}body.pushed #gridS{visibility:hidden}
 #gridS .gt{position:relative;border:0;padding:0;background:#111;overflow:hidden;border-radius:4px}
 #gridS .gt i{position:absolute;inset:0;background:#141213 center/cover no-repeat;transition:opacity .4s}
-#gridS .gt em{position:absolute;left:6px;bottom:4px;font-style:normal;font-size:11px;color:#ff3d68;text-shadow:0 1px 2px #000}
+#gridS .gheart{position:absolute;right:6px;top:6px;width:24px;height:24px;border-radius:12px;display:grid;place-items:center;background:rgba(12,10,11,.55);color:#ff3d68;opacity:0;transform:scale(.6);transition:opacity .35s,transform .35s cubic-bezier(.22,.9,.24,1);pointer-events:none}
+#gridS .gheart svg{width:13px;height:13px;fill:currentColor}
+#gridS .gt.inbag .gheart{opacity:1;transform:none}
 #gridS .gt:active i{opacity:.7}
 #devSheet{position:fixed;inset:0;z-index:200;display:flex;align-items:flex-end;background:rgba(0,0,0,0);transition:background .3s}
 #devSheet[hidden]{display:none!important}#devSheet.on{background:rgba(0,0,0,.45)}
@@ -1303,7 +1307,7 @@ function itemHtml(it, i){
   const n = it.n || 1; let frames = '';
   for (let k=0;k<n;k++) frames += it.photos ? `<div class="frame"><div class="ph one" data-k="${k}"></div></div>` : `<div class="frame"><div class="ph" style="background-position:${posOf(it,k)}% 0"></div></div>`;
   return `<section class="item${inBag(it)?' inbag':''}" data-i="${i}" style="--n:${n}"><div class="amb"></div><div class="views">${frames}</div>
-    ${n>1 ? (n > 8 ? `<div class="pips prog" style="--k:1;--n:${n}"><i></i></div>` : `<div class="pips">${'<i></i>'.repeat(n).replace('<i>','<i class="on">')}</div>`) : ''}${priceHtml(it)}<i class="bagmark" aria-label="В сумке">${BAG}</i><div class="swb l"></div><div class="swb r"></div></section>`;
+    ${n>1 ? (n > 8 ? `<div class="pips prog" style="--k:1;--n:${n}"><i></i></div>` : `<div class="pips">${'<i></i>'.repeat(n).replace('<i>','<i class="on">')}</div>`) : ''}${priceHtml(it)}<i class="bagmark" aria-label="На вешалке">${HEART}</i><div class="swb l"></div><div class="swb r"></div></section>`;
 }
 function renderFeed(){
   list = CAT.filter(i => (cat==='all' || brandOf(i)===cat) && (fpart==='all' || partOf(i)===fpart));
@@ -1378,6 +1382,15 @@ const pend = e => {
   if (p.fired || p.moved || e.type === 'pointercancel' || Date.now()-p.t > 450) return;
   tap(p.s, e.clientX, e.clientY);
 };
+// Павел 10.11: «листаю фото вбок — картинка норовит уехать вверх-вниз, оказываюсь на соседней вещи»:
+// как только палец пошёл скорее вбок, чем вверх-вниз, вертикальная прокрутка ленты замирает до конца жеста; в конце лента встаёт точно на свою вещь
+{ let T0 = null;
+  feed.addEventListener('touchstart', e => { const t = e.touches[0]; T0 = e.touches.length === 1 ? {x: t.clientX, y: t.clientY, ax: 0} : null; }, {passive: true});
+  feed.addEventListener('touchmove', e => { if (!T0) return; const t = e.touches[0], dx = t.clientX - T0.x, dy = t.clientY - T0.y;
+    if (!T0.ax && Math.hypot(dx, dy) > 4) T0.ax = Math.abs(dx) > Math.abs(dy) * 0.8 ? 'h' : 'v';
+    if (T0.ax === 'h') e.preventDefault(); }, {passive: false});
+  const tEnd = () => { if (T0?.ax === 'h') { const H = feed.clientHeight; if (Math.abs(feed.scrollTop - cur * H) > 2) feed.scrollTo({top: cur * H, behavior: 'smooth'}); } T0 = null; };
+  feed.addEventListener('touchend', tEnd); feed.addEventListener('touchcancel', tEnd); }
 // Павел 10.11: свайп влево-вправо — только ракурсы и только если их несколько; в сумку — только сердцем
 const frameOf = s => +s.dataset.k || 0, nOf = s => +getComputedStyle(s).getPropertyValue('--n') || 1;
 const NO_THUMB = new Set();   // у каких вещей лёгких фото ещё нет (WeChat заливает m/ постепенно)
@@ -2180,7 +2193,7 @@ function topUp(x){
     if (k < 1) requestAnimationFrame(step); else { paintWallet(); paintRail(); paintCredit(); document.querySelectorAll('.wrange').forEach(r => { r.value = v2sl(curr(), to); r.style.setProperty('--p', (r.value / 10) + '%'); }); } };
   requestAnimationFrame(step); document.querySelectorAll('.wbig,#rail .rh b').forEach(el => { el.classList.remove('pop'); void el.offsetWidth; el.classList.add('pop'); });
 }
-function markBag(it){ paintDock(); feed.querySelectorAll('.item').forEach(s => { if (list[+s.dataset.i]?.id === it.id) { s.classList.toggle('inbag', inBag(it)); const b = s.querySelector('.bagbtn'); if (b) b.setAttribute('aria-label', inBag(it) ? 'Снять с вешалки' : 'На вешалку'); } }); }
+function markBag(it){ paintDock(); gridEl?.querySelectorAll('.gt').forEach(t => { if (list[+t.dataset.i]?.id === it.id) t.classList.toggle('inbag', inBag(it)); }); feed.querySelectorAll('.item').forEach(s => { if (list[+s.dataset.i]?.id === it.id) { s.classList.toggle('inbag', inBag(it)); const b = s.querySelector('.bagbtn'); if (b) b.setAttribute('aria-label', inBag(it) ? 'Снять с вешалки' : 'На вешалку'); } }); }
 function bagAdd(it){
   if (inBag(it)) { toast('Уже на вешалке'); return; }
   S.look.ids.push(it.id); save('look'); haptic(); markBag(it); updCounts(); paintWallet();
@@ -3019,7 +3032,7 @@ function renderGrid(){
   if (gridN < 2) { gridEl.hidden = true; return; }
   gridBox(); gridEl.hidden = false;
   const H = gridEl.clientHeight || (innerHeight - 220); gridEl.style.setProperty('--gn', gridN); gridEl.style.setProperty('--gh', (H / gridN) + 'px');
-  gridEl.innerHTML = list.map((it, i) => `<button class="gt" data-i="${i}" aria-label="${esc(it.model || it.title || '')}"><i></i>${rating(it) ? `<em>${'♥'.repeat(rating(it))}</em>` : ''}</button>`).join('');
+  gridEl.innerHTML = list.map((it, i) => `<button class="gt${inBag(it) ? ' inbag' : ''}" data-i="${i}" aria-label="${esc(it.model || it.title || '')}"><i></i><b class="gheart">${HEART}</b></button>`).join('');   // Павел 10.11: сердце «прилипает» к лайкнутой вещи — и в сетке
   gridIO?.disconnect();
   gridIO = new IntersectionObserver(es => es.forEach(e => { if (!e.isIntersecting) return; const t = e.target, it = list[+t.dataset.i]; if (it && !t._ld) { t._ld = 1; const im = t.firstChild; im.style.backgroundImage = `url('${it.thumbs?.[0] || it.photos?.[0] || it.img}')`; if (!it.photos && (it.n || 1) > 1) { im.style.backgroundSize = `${it.n * 100}% auto`; im.style.backgroundPosition = '0% 50%'; } } gridIO.unobserve(t); }), {root: gridEl, rootMargin: '400px 0px'});
   gridEl.querySelectorAll('.gt').forEach(t => gridIO.observe(t));
