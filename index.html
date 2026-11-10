@@ -692,6 +692,12 @@ html.bag0 .ovbag .bagn{display:none}
 #lgReset{margin-top:6px}
 .tgbtn{display:flex;align-items:center;justify-content:center;gap:10px;background:#2AABEE;color:#fff;margin-bottom:6px}
 .tgbtn svg{width:20px;height:20px}
+#gridS{position:fixed;left:0;right:0;z-index:6;overflow-y:auto;-webkit-overflow-scrolling:touch;display:grid;grid-template-columns:repeat(var(--gn,2),1fr);grid-auto-rows:var(--gh,33vh);gap:2px;padding:0 2px;background:#000;scrollbar-width:none}
+#gridS[hidden]{display:none!important}#fGrid{grid-template-columns:repeat(3,1fr)!important;display:grid}body.pushed #gridS{visibility:hidden}
+#gridS .gt{position:relative;border:0;padding:0;background:#111;overflow:hidden;border-radius:4px}
+#gridS .gt i{position:absolute;inset:0;background:#141213 center/cover no-repeat;transition:opacity .4s}
+#gridS .gt em{position:absolute;left:6px;bottom:4px;font-style:normal;font-size:11px;color:#ff3d68;text-shadow:0 1px 2px #000}
+#gridS .gt:active i{opacity:.7}
 #devSheet{position:fixed;inset:0;z-index:200;display:flex;align-items:flex-end;background:rgba(0,0,0,0);transition:background .3s}
 #devSheet[hidden]{display:none!important}#devSheet.on{background:rgba(0,0,0,.45)}
 #devSheet .dvBox{width:100%;padding:16px 16px calc(var(--sb,34px) + 12px);background:#1d1b1c;border-radius:22px 22px 0 0;transform:translateY(100%);transition:transform .45s cubic-bezier(.22,.9,.24,1);display:flex;flex-direction:column;gap:10px;color:#f3ecdc}
@@ -1010,6 +1016,8 @@ body.wide #filt .fbq input{font:400 20px var(--serif);color:var(--ivory)}
   <div class="fbrand">ENVOLÉES</div>
   <small class="flbl" id="fWhatLbl">Что</small>
   <div class="fparts" id="fParts"></div>
+  <small class="flbl">Вид ленты</small>
+  <div class="forder" id="fGrid"></div>
   <small class="flbl">Порядок</small>
   <div class="forder" id="fOrder"></div>
   <small class="flbl" id="fBrandLbl">Бренд</small>
@@ -1307,6 +1315,7 @@ function renderFeed(){
   feed.innerHTML = list.map(itemShell).join('') + `<section class="end item-end" data-top-go aria-label="Коснитесь — в начало ленты"><b>ENVOLÉES</b><em>Prends ton envol</em></section>`   /* Павел 10.11: в конце — только это */;
   nodes = [...feed.querySelectorAll('.item')];
   feed.scrollTop = 0; cur = 0; hydrate(); settle(); paintDock();
+  if (gridN > 1 && window.gridEl) renderGrid();
 }
 // сначала лёгкое фото (img/, ~150 КБ) — сразу, потом резкое (img2/) — подменяется, когда декодировано
 const loadImg = url => new Promise(res => { const im = new Image(); let done = false; const fin = v => { if (!done) { done = true; res(v); } };
@@ -2465,6 +2474,8 @@ function buildFilt(){
   const bc = {}; CAT.forEach(i => { if (fpart==='all' || partOf(i)===fpart) { const b = brandOf(i); if (b) bc[b] = (bc[b] || 0) + 1; } });
   const all = Object.values(bc).reduce((a,b) => a+b, 0);
   $('#fBrands').innerHTML = [['all','Все бренды', all], ...Object.entries(bc).sort((a,b) => (b[0]===cat) - (a[0]===cat) || b[1]-a[1]).map(([k,n]) => [k,k,n])].map(([k,l,n]) => `<button data-k="${esc(k)}" class="${k===cat?'on':''}"><span>${esc(l)}</span><i>${k===cat && k!=='all' ? '✓ ' : ''}${n}</i></button>`).join('');
+  $('#fGrid').innerHTML = [[1,'1 кадр'],[2,'4 · 2×2'],[3,'9 · 3×3']].map(([n,l]) => `<button data-g="${n}" class="${gridN===n?'on':''}">${l}</button>`).join('');
+  $('#fGrid').querySelectorAll('button').forEach(x => x.onclick = () => { setGrid(+x.dataset.g); closeFilt(); });
   $('#fOrder').innerHTML = `<button data-o="kind" class="${forder==='kind'?'on':''}">По видам</button><button data-o="mix" class="${forder==='mix'?'on':''}">Вперемешку</button>`;
   $('#fOrder').querySelectorAll('button').forEach(x => x.onclick = () => { if (forder === x.dataset.o) { closeFilt(); return; } applyFilt(() => { forder = x.dataset.o; if (forder === 'mix') mixSeed = Math.floor(Math.random() * 233280); LSset('forder', forder); }); });
   $('#fParts').querySelectorAll('button').forEach(x => x.onclick = () => { if (fpart === x.dataset.k && !x.classList.contains('other')) { closeFilt(); return; } applyFilt(() => { fpart = x.dataset.k; if (x.classList.contains('other')) { cat = 'all'; markCats(); } }); });   // вид, которого нет у бренда, сбрасывает бренд   // Павел 10.11: выбрал — панель сама уезжает влево
@@ -2995,6 +3006,39 @@ if (SUPA && !SUPA.demo) {
   document.addEventListener('pointermove', e => { if (hold && Math.hypot(e.clientX - hold.x, e.clientY - hold.y) > 10) { clearTimeout(hold.t); hold = null; } }, true);
   ['pointerup', 'pointercancel'].forEach(k => document.addEventListener(k, () => { if (hold) { clearTimeout(hold.t); hold = null; } }, true));
 })();
+
+
+/* ———— Павел 10.11 (третий раз): «листание колонками, рядами — 2×2 или 3×3 на экране» ————
+   Сетка поверх ленты: 4 или 9 кадров на экран, листается вверх-вниз; нажал кадр — эта вещь крупно в ленте.
+   Переключатель — в фильтрах («Вид ленты»); свести два пальца на ленте — мельче, развести — крупнее. Выбор запоминается. */
+var gridN = [1, 2, 3].includes(+LS('gridN')) ? +LS('gridN') : 1, gridIO = null;
+var gridEl = document.body.appendChild(Object.assign(document.createElement('div'), {id: 'gridS', hidden: true}));
+gridEl.setAttribute('aria-label', 'Лента сеткой');
+function gridBox(){ const top = $('#chrome')?.getBoundingClientRect().bottom || 100, d = $('#dock')?.getBoundingClientRect(); gridEl.style.top = top + 'px'; gridEl.style.bottom = (d ? innerHeight - d.top : 110) + 'px'; }
+function renderGrid(){
+  if (gridN < 2) { gridEl.hidden = true; return; }
+  gridBox(); gridEl.hidden = false;
+  const H = gridEl.clientHeight || (innerHeight - 220); gridEl.style.setProperty('--gn', gridN); gridEl.style.setProperty('--gh', (H / gridN) + 'px');
+  gridEl.innerHTML = list.map((it, i) => `<button class="gt" data-i="${i}" aria-label="${esc(it.model || it.title || '')}"><i></i>${rating(it) ? `<em>${'♥'.repeat(rating(it))}</em>` : ''}</button>`).join('');
+  gridIO?.disconnect();
+  gridIO = new IntersectionObserver(es => es.forEach(e => { if (!e.isIntersecting) return; const t = e.target, it = list[+t.dataset.i]; if (it && !t._ld) { t._ld = 1; const im = t.firstChild; im.style.backgroundImage = `url('${it.thumbs?.[0] || it.photos?.[0] || it.img}')`; if (!it.photos && (it.n || 1) > 1) { im.style.backgroundSize = `${it.n * 100}% auto`; im.style.backgroundPosition = '0% 50%'; } } gridIO.unobserve(t); }), {root: gridEl, rootMargin: '400px 0px'});
+  gridEl.querySelectorAll('.gt').forEach(t => gridIO.observe(t));
+  const at = gridEl.querySelector(`.gt[data-i="${Math.max(0, cur)}"]`); if (at) gridEl.scrollTop = Math.max(0, at.offsetTop - 4);
+}
+function setGrid(n){ if (n === gridN) return; gridN = n; LSset('gridN', n); haptic('select');
+  gridEl.style.transition = 'opacity .35s ease'; gridEl.style.opacity = '0';
+  setTimeout(() => { renderGrid(); requestAnimationFrame(() => { gridEl.style.opacity = '1'; }); }, n > 1 && !gridEl.hidden ? 200 : 0); }
+gridEl.addEventListener('click', e => { const t = e.target.closest('.gt'); if (!t) return; const i = +t.dataset.i; haptic();
+  setGrid(1); feed.scrollTo({top: i * feed.clientHeight, behavior: 'instant'}); cur = i; hydrate(); settle(); paintDock(); });
+// жест щипка: свести пальцы на ленте или сетке — кадров больше, развести — меньше
+{ let P0 = null; const dist = t => Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY);
+  [feed, gridEl].forEach(el => {
+    el.addEventListener('touchstart', e => { if (e.touches.length === 2) P0 = dist(e.touches); }, {passive: true});
+    el.addEventListener('touchmove', e => { if (!P0 || e.touches.length !== 2) return; const k = dist(e.touches) / P0;
+      if (k < 0.72 && gridN < 3) { setGrid(gridN + 1); P0 = null; } else if (k > 1.35 && gridN > 1) { setGrid(gridN - 1); P0 = null; } }, {passive: true});
+    el.addEventListener('touchend', () => { P0 = null; }); }); }
+addEventListener('resize', () => { if (gridN > 1) renderGrid(); });
+setTimeout(() => { if (gridN > 1 && list.length) renderGrid(); }, 800);
 
 </script>
 </body></html>
