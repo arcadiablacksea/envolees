@@ -1685,6 +1685,9 @@ async function dropLooks(pk){   // вернуться к основному фо
 function wear(it){
   const pk = S.profile.current, look = lookNow(pk), p = S.profile.people[pk];
   if (look && look.status !== 'done') { toast('Подождите — предыдущая вещь ещё надевается'); return; }
+  // Павел 10.11: «лицо крупно — а надели туфли на голову; это мои деньги» — на фото лица крупно надеваем только то, что видно на лице и голове
+  { const ph = p.photos[p.main || 0] || p.photos[0], f = ph?.face, k = partOf(it);
+    if (f && f.h > 0.22 && !wornNow(pk).includes(it.id) && !['glasses', 'hats', 'jewel'].includes(k)) { toast('Это фото — лицо крупно. Для этой вещи выберите фото в полный рост'); haptic(); return; } }
   const worn = wornNow(pk), base = baseOf(pk), last = look?.status === 'done' ? look : null;
   let ids, photo, apply, toRaw = false;
   if (worn.includes(it.id)) {                                   // снять
@@ -1734,10 +1737,11 @@ function renderWearBar(pk, worn, pend){
       bar.querySelectorAll('.wc').forEach(c => c.onclick = e => { e.stopPropagation(); const it2 = byId[c.dataset.id]; if (!it2 || it2 === tryItem) return; tryItem = it2; haptic(); renderTry(); });
       // Павел 10.11: «заказывала сапоги, а одели туфли» — долистала колонку до сапог, а выбранной оставалась прежняя вещь;
       // теперь вещь, на которой колонка остановилась (верхняя у модели), сама становится выбранной — «Надеть» надевает именно её
-      bar.onscroll = () => { clearTimeout(bar._st); bar._st = setTimeout(vitrineLoad, 60); clearTimeout(bar._pick);
+      bar.ontouchstart = () => { bar._user = true; };   // Павел 10.11: «надели туфли на голову» — выбор только когда листает человек, а не приложение
+      bar.onscroll = () => { clearTimeout(bar._st); bar._st = setTimeout(vitrineLoad, 60); clearTimeout(bar._pick); if (!bar._user) return;
         bar._pick = setTimeout(() => { const cs = [...bar.querySelectorAll('.wc')]; if (!cs.length) return;
           const c = cs.reduce((a, b) => Math.abs(b.offsetTop - 8 - bar.scrollTop) < Math.abs(a.offsetTop - 8 - bar.scrollTop) ? b : a);
-          const it2 = byId[c.dataset.id]; if (it2 && it2 !== tryItem) { tryItem = it2; haptic('select'); renderTry(); } }, 220); };
+          bar._user = false; const it2 = byId[c.dataset.id]; if (it2 && it2 !== tryItem) { tryItem = it2; haptic('select'); renderTry(); } }, 220); };
       requestAnimationFrame(() => { const cur = bar.querySelector(`.wc[data-id="${CSS.escape(tryItem?.id || '')}"]`); if (cur) bar.scrollTop = Math.max(0, cur.offsetTop - 8); vitrineLoad(); });
     } else {
       wheelDrag(bar, ids);
@@ -1747,7 +1751,8 @@ function renderWearBar(pk, worn, pend){
   if (isVitrine()) bar.querySelectorAll('.wc').forEach(c => c.classList.toggle('cur', c.dataset.id === tryItem?.id));
   bar.querySelectorAll('.wc').forEach(c => { const id = c.dataset.id; c.classList.toggle('on', worn.includes(id)); c.classList.toggle('bought', isBought(id)); c.classList.toggle('pend', pend.includes(id) && !worn.includes(id)); });
   const go = $('#wheelGo'), it = tryItem, busy = pend.length > 0, on = it && worn.includes(it.id);
-  if (go && it) { go.textContent = busy ? actWord() : on ? 'Снять' : 'Надеть'; go.disabled = busy; go.classList.toggle('ghost', !!on); go.onclick = e => { e.stopPropagation(); wear(it); }; }
+  const brandShort = it ? String(brandOf(it) || it.brand || '').split(' ').slice(0, 2).join(' ') : '';
+  if (go && it) { go.textContent = busy ? actWord() : (on ? 'Снять' : 'Надеть') + (brandShort ? ' · ' + brandShort : ''); go.disabled = busy; go.classList.toggle('ghost', !!on); go.onclick = e => { e.stopPropagation(); wear(it); }; }
   layoutWheel();
 }
 const isVitrine = () => !document.body.classList.contains('wide');
@@ -1982,7 +1987,8 @@ async function addPhotoFile(f){
       const src = await new Promise(ok => { const fr = new FileReader(); fr.onload = () => ok(fr.result); fr.readAsDataURL(blob); });
       p.photos.push({src});
     }
-    p.main = p.photos.length-1; save('profile'); haptic(); updCounts();   // аватар кабинета — сразу новое фото
+    p.main = p.photos.length-1; save('profile'); haptic(); updCounts();
+    { const ph = p.photos[p.main]; detectFace(photoSrc(ph)).then(f => { ph.face = f; save('profile'); }); }   // сразу знаем, где лицо: крупный план или в полный рост   // аватар кабинета — сразу новое фото
     if ($('#meS').classList.contains('on')) renderMe();
     if (tryItem && !$('#tryS').hidden) { resetZoom(); renderTry(); }   // сразу — на новом фото
     toast('Фото добавлено — примеряем на нём');
