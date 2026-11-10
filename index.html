@@ -3062,7 +3062,8 @@ const zClamp = r => { Z.x = Math.min(0, Math.max(r.width - r.width * Z.s, Z.x));
 function zPrep(ph){   // максимум — оригинальный пиксель; при увеличении подменяем лёгкое фото на оригинал
   const s = ph.closest('.item'), it = list[+s?.dataset.i], k = frameOf(s), full = it?.photos?.[k];
   const bg = (getComputedStyle(ph).backgroundImage.match(/url\("?(.*?)"?\)/) || [])[1];
-  const im = new Image(); im.onload = () => { const r = ph.getBoundingClientRect(), base = Math.max(r.width / im.naturalWidth, r.height / im.naturalHeight) * (devicePixelRatio || 2); Z.max = Math.max(2, Math.min(12, 1 / base)); }; im.src = full || bg || '';
+  const im = new Image(); im.onload = () => { if (Z.el !== ph) return;   // Павел 10.11: «увеличивается, потом щёлк и отваливается до 2×» — мерили уже увеличенное фото; теперь по обычному размеру, не меньше 4×, предел только растёт
+    const base = Math.max(ph.offsetWidth / im.naturalWidth, ph.offsetHeight / im.naturalHeight); Z.max = Math.max(Z.max, Z.s, Math.min(12, Math.max(4, 1 / base))); }; im.src = full || bg || '';
   if (full && bg && bg !== full && !ph._hi) { ph._hi = 1; const hi = new Image(); hi.onload = () => { ph.style.backgroundImage = `url('${full}')`; }; hi.src = full; }
 }
 { let G = null, lastEnd = 0; const dist = t => Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY), mid = t => ({x: (t[0].clientX + t[1].clientX) / 2, y: (t[0].clientY + t[1].clientY) / 2});
