@@ -703,6 +703,7 @@ html.bag0 .ovbag .bagn{display:none}
 #gridS .gheart svg{width:100%;height:100%;fill:currentColor;stroke:#fff;stroke-width:1.5;filter:drop-shadow(0 2px 5px rgba(0,0,0,.5)) drop-shadow(0 0 8px rgba(255,61,104,.45));overflow:visible}
 #gridS .gt.inbag .gheart{opacity:1;transform:none}
 #gridS .gt:active i{opacity:.7}
+#gridS .gt.pinch{z-index:20;overflow:visible;box-shadow:0 20px 50px rgba(0,0,0,.7)}
 #devSheet{position:fixed;inset:0;z-index:200;display:flex;align-items:flex-end;background:rgba(0,0,0,0);transition:background .3s}
 #devSheet[hidden]{display:none!important}#devSheet.on{background:rgba(0,0,0,.45)}
 #devSheet .dvBox{width:100%;padding:16px 16px calc(var(--sb,34px) + 12px);background:#1d1b1c;border-radius:22px 22px 0 0;transform:translateY(100%);transition:transform .45s cubic-bezier(.22,.9,.24,1);display:flex;flex-direction:column;gap:10px;color:#f3ecdc}
@@ -1370,7 +1371,7 @@ feed.addEventListener('pointerdown', e => {
 });
 const SW = 50;   // протяжка; короткий быстрый взмах тоже засчитывается (см. swipeEnd)   // столько пикселей пальцем вбок — и вещь в сумке / вернулась
 feed.addEventListener('pointermove', e => {
-  if (!P) return; const dx = e.clientX - P.x, dy = e.clientY - P.y;
+  if (!P || (window.Z && Z.s > 1.001)) return; const dx = e.clientX - P.x, dy = e.clientY - P.y;
   const now = Date.now(); if (now > P.lt) { P.vx = .6 * P.vx + .4 * (e.clientX - P.lx) / (now - P.lt); P.lx = e.clientX; P.lt = now; }
   if (!P.h && Math.hypot(dx, dy) > 8) { P.moved = true; clearTimeout(P.lp); if (Math.abs(dx) > Math.abs(dy)) P.h = true; }
   if (P.h) swipeDrag(P, dx);
@@ -1405,6 +1406,7 @@ function loadFrames(s, it, k){
   for (let j = 0; j < phs.length; j++) if (Math.abs(j - k) > 3 && phs[j].dataset.ld) { phs[j].style.backgroundImage = ''; delete phs[j].dataset.ld; }   // 66 фото — в памяти держим только соседей
 }
 function setFrame(s, k, smooth = true){
+  if (window.Z?.el) zReset(false);
   const it0 = list[+s.dataset.i]; if (it0?.photos) { loadFrames(s, it0, k); const pg = s.querySelector('.pips.prog'); if (pg) pg.style.setProperty('--k', k + 1); }
   const v = s.querySelector('.views'); if (!v) return; s.dataset.k = k;
   v.classList.toggle('snapback', smooth); v.style.transform = k ? `translateX(${-k * 100}%)` : '';
@@ -1566,6 +1568,7 @@ let lastMoved = 0; feed.addEventListener('pointerdown', () => { lastMoved = 0; }
 feed.addEventListener('click', e => { if (e.target.closest('.lnk') && lastMoved) e.preventDefault(); }, true);   // ссылка не срабатывает после свайпа
 feed.addEventListener('contextmenu', e => e.preventDefault());
 function tap(s, x, y){
+  if (Date.now() - (window._zoomEat || 0) < 450 || (window.Z && Z.s > 1.001)) return;   // при увеличенном фото двойное нажатие — вернуть размер, а не лайк
   const now = Date.now(), r = s.getBoundingClientRect(), fx = (x - r.left) / r.width;
   if (now - lastTap.t < 320 && lastTap.s === s && Math.hypot(x-lastTap.x, y-lastTap.y) < 40) {
     lastTap = {t:0}; const it = list[+s.dataset.i]; heartAt(s, x, y, 0);
@@ -3044,15 +3047,57 @@ function setGrid(n){ if (n === gridN) return; gridN = n; LSset('gridN', n); hapt
   setTimeout(() => { renderGrid(); requestAnimationFrame(() => { gridEl.style.opacity = '1'; }); }, n > 1 && !gridEl.hidden ? 200 : 0); }
 gridEl.addEventListener('click', e => { const t = e.target.closest('.gt'); if (!t) return; const i = +t.dataset.i; haptic();
   setGrid(1); feed.scrollTo({top: i * feed.clientHeight, behavior: 'instant'}); cur = i; hydrate(); settle(); paintDock(); });
-// жест щипка: свести пальцы на ленте или сетке — кадров больше, развести — меньше
-{ let P0 = null; const dist = t => Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY);
-  [feed, gridEl].forEach(el => {
-    el.addEventListener('touchstart', e => { if (e.touches.length === 2) P0 = dist(e.touches); }, {passive: true});
-    el.addEventListener('touchmove', e => { if (!P0 || e.touches.length !== 2) return; const k = dist(e.touches) / P0;
-      if (k < 0.72 && gridN < 3) { setGrid(gridN + 1); P0 = null; } else if (k > 1.35 && gridN > 1) { setGrid(gridN - 1); P0 = null; } }, {passive: true});
-    el.addEventListener('touchend', () => { P0 = null; }); }); }
 addEventListener('resize', () => { if (gridN > 1) renderGrid(); });
 setTimeout(() => { if (gridN > 1 && list.length) renderGrid(); }, 800);
+
+
+/* ———— Павел 10.11: «зум корректный» ————
+   Одна вещь: двумя пальцами увеличивается только фото (остальное не двигается), до 1 пикселя снимка на 1 пиксель экрана;
+   увеличенное остаётся, двигается одним пальцем; двойное нажатие — снова по экрану. Свести пальцы на неувеличенном фото — сетка 2×2.
+   Сетка: развёл пальцы на кадре — он растёт за пальцами; растянул достаточно — встаёт на весь экран, мало — возвращается; свёл — кадров больше. */
+var Z = {el: null, s: 1, x: 0, y: 0, max: 4};
+const zApply = (anim) => { const e = Z.el; if (!e) return; e.style.transition = anim ? 'transform .35s cubic-bezier(.22,.9,.24,1)' : 'none'; e.style.transformOrigin = '0 0'; e.style.transform = Z.s > 1.001 ? `translate(${Z.x}px,${Z.y}px) scale(${Z.s})` : ''; };
+function zReset(anim = true){ if (!Z.el) return; Z.s = 1; Z.x = Z.y = 0; zApply(anim); const e = Z.el; Z.el = null; document.body.classList.remove('zoomed'); setTimeout(() => { if (!Z.el) e.style.transition = ''; }, 400); }
+const zClamp = r => { Z.x = Math.min(0, Math.max(r.width - r.width * Z.s, Z.x)); Z.y = Math.min(0, Math.max(r.height - r.height * Z.s, Z.y)); };
+function zPrep(ph){   // максимум — оригинальный пиксель; при увеличении подменяем лёгкое фото на оригинал
+  const s = ph.closest('.item'), it = list[+s?.dataset.i], k = frameOf(s), full = it?.photos?.[k];
+  const bg = (getComputedStyle(ph).backgroundImage.match(/url\("?(.*?)"?\)/) || [])[1];
+  const im = new Image(); im.onload = () => { const r = ph.getBoundingClientRect(), base = Math.max(r.width / im.naturalWidth, r.height / im.naturalHeight) * (devicePixelRatio || 2); Z.max = Math.max(2, Math.min(12, 1 / base)); }; im.src = full || bg || '';
+  if (full && bg && bg !== full && !ph._hi) { ph._hi = 1; const hi = new Image(); hi.onload = () => { ph.style.backgroundImage = `url('${full}')`; }; hi.src = full; }
+}
+{ let G = null, lastEnd = 0; const dist = t => Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY), mid = t => ({x: (t[0].clientX + t[1].clientX) / 2, y: (t[0].clientY + t[1].clientY) / 2});
+  feed.addEventListener('touchstart', e => {
+    if (e.touches.length === 2) { const s = nodes[cur], ph = s?.querySelectorAll('.ph')[frameOf(s)]; if (!ph) return;
+      if (Z.el !== ph) { if (Z.el) zReset(false); Z.el = ph; Z.s = 1; Z.x = Z.y = 0; Z.max = 4; zPrep(ph); }
+      const r = ph.getBoundingClientRect(); G = {mode: 'pinch', d0: dist(e.touches), m0: mid(e.touches), s0: Z.s, x0: Z.x, y0: Z.y, rl: r.left - Z.x, rt: r.top - Z.y, w: r.width / Z.s, h: r.height / Z.s}; P = null; }
+    else if (e.touches.length === 1 && Z.el && Z.s > 1) { const t = e.touches[0]; G = {mode: 'pan', sx: t.clientX, sy: t.clientY, x0: Z.x, y0: Z.y}; P = null; }
+  }, {passive: true, capture: true});
+  feed.addEventListener('touchmove', e => { if (!G) return; e.preventDefault(); e.stopPropagation();
+    if (G.mode === 'pinch' && e.touches.length === 2) { const k = dist(e.touches) / G.d0, m = mid(e.touches);
+      if (G.s0 <= 1.001 && k < 0.72) { G = null; zReset(false); setGrid(2); return; }   // свели пальцы на обычном фото — сетка
+      Z.s = Math.max(1, Math.min(Z.max, G.s0 * k)); const px = (G.m0.x - G.rl - G.x0) / G.s0, py = (G.m0.y - G.rt - G.y0) / G.s0;
+      Z.x = m.x - G.rl - px * Z.s; Z.y = m.y - G.rt - py * Z.s; zClamp({width: G.w, height: G.h}); zApply(false); document.body.classList.toggle('zoomed', Z.s > 1.001); }
+    else if (G.mode === 'pan' && e.touches.length === 1) { const t = e.touches[0]; Z.x = G.x0 + t.clientX - G.sx; Z.y = G.y0 + t.clientY - G.sy; const r = Z.el.getBoundingClientRect(); zClamp({width: r.width / Z.s, height: r.height / Z.s}); zApply(false); }
+  }, {passive: false, capture: true});
+  feed.addEventListener('touchend', e => { const now = Date.now();
+    if (G && e.touches.length === 0) { if (Z.s < 1.03) zReset(); G = null; }
+    else if (G?.mode === 'pinch' && e.touches.length === 1) G = null;
+    if (Z.el && Z.s > 1 && e.touches.length === 0 && e.changedTouches.length === 1) { if (now - lastEnd < 320) { zReset(); window._zoomEat = now; haptic(); } lastEnd = now; }   // двойное нажатие — по экрану
+  }, {capture: true});
+  // сетка: кадр растёт за пальцами
+  let GT = null;
+  gridEl.addEventListener('touchstart', e => { if (e.touches.length !== 2) return; const t = e.touches, x = (t[0].clientX + t[1].clientX) / 2, y = (t[0].clientY + t[1].clientY) / 2;
+    const tile = document.elementFromPoint(x, y)?.closest('.gt'); if (!tile) return; const r = tile.getBoundingClientRect();
+    GT = {tile, d0: dist(t), ox: x - r.left, oy: y - r.top, k: 1, fill: Math.max(innerWidth / r.width, (gridEl.clientHeight) / r.height)}; tile.classList.add('pinch'); tile.style.transformOrigin = `${GT.ox}px ${GT.oy}px`; }, {passive: true});
+  gridEl.addEventListener('touchmove', e => { if (!GT || e.touches.length !== 2) return; e.preventDefault(); GT.k = dist(e.touches) / GT.d0;
+    if (GT.k < 0.75 && gridN < 3) { GT.tile.classList.remove('pinch'); GT.tile.style.transform = ''; GT = null; setGrid(gridN + 1); return; }
+    GT.tile.style.transform = `scale(${Math.max(0.85, GT.k)})`; }, {passive: false});
+  gridEl.addEventListener('touchend', e => { if (!GT || e.touches.length) return; const g = GT; GT = null; const tile = g.tile;
+    if (g.k > Math.min(1.8, g.fill * 0.55)) {   // растянул достаточно — на весь экран
+      tile.style.transition = 'transform .3s cubic-bezier(.22,.9,.24,1)'; tile.style.transform = `scale(${g.fill})`; haptic();
+      setTimeout(() => { tile.classList.remove('pinch'); tile.style.transition = tile.style.transform = ''; tile.click(); }, 280); }
+    else { tile.style.transition = 'transform .35s cubic-bezier(.22,.9,.24,1)'; tile.style.transform = ''; setTimeout(() => { tile.classList.remove('pinch'); tile.style.transition = ''; }, 360); } });
+}
 
 </script>
 </body></html>
